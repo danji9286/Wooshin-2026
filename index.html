@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>석식 입장 확인</title>
+
+<style>
+body {
+  text-align:center;
+  font-family:sans-serif;
+  margin-top:50px;
+}
+
+input {
+  font-size:40px;
+  padding:10px;
+  width:300px;
+}
+
+button {
+  font-size:40px;
+  padding:10px 30px;
+}
+
+#result {
+  font-size:50px;
+  margin-top:20px;
+}
+</style>
+
+</head>
+
+<body>
+
+<h1 style="font-size:60px;">석식 입장 확인</h1>
+
+<input id="studentId" placeholder="학번"
+onkeydown="if(event.key==='Enter') check()">
+
+<br><br>
+
+<button onclick="check()">확인</button>
+
+<h2 id="result"></h2>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyACMtFDfVtgHIerB_8CnqkvtRCdSP0vi68",
+  authDomain: "wooshin-28cef.firebaseapp.com",
+  projectId: "wooshin-28cef",
+  storageBucket: "wooshin-28cef.firebasestorage.app",
+  messagingSenderId: "62328740426",
+  appId: "1:62328740426:web:d317327159fc67f09b64b3"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+function today() {
+  return new Date().toISOString().split("T")[0];
+}
+
+window.check = async function() {
+
+  const id = document.getElementById("studentId").value.trim();
+  const result = document.getElementById("result");
+
+  if (!id) {
+    result.innerText = "학번 입력!";
+    result.style.color = "orange";
+    return;
+  }
+
+  const attemptRef = doc(db,"logs",today(),"attempts",id);
+  const attemptSnap = await getDoc(attemptRef);
+
+  const studentRef = doc(db,"students",id);
+  const studentSnap = await getDoc(studentRef);
+
+  const updateAttempt = async (type) => {
+    await setDoc(attemptRef,{
+      type:type,
+      count:attemptSnap.exists()
+        ? attemptSnap.data().count+1
+        : 1
+    });
+  };
+
+  if(!studentSnap.exists()){
+    await updateAttempt("invalid");
+
+    result.innerText="석식 신청 안 됨";
+    result.style.color="red";
+    return;
+  }
+
+  const logRef = doc(db,"logs",today(),"entries",id);
+  const logSnap = await getDoc(logRef);
+
+  if(logSnap.exists()){
+    await updateAttempt("duplicate");
+
+    result.innerText="이미 입장함";
+    result.style.color="red";
+    return;
+  }
+
+  await setDoc(logRef,{time:new Date()});
+  await updateAttempt("normal");
+
+  result.innerText="입장 가능";
+  result.style.color="green";
+
+  document.getElementById("studentId").value="";
+  document.getElementById("studentId").focus();
+};
+
+</script>
+
+</body>
+</html>
