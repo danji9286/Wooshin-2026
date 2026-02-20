@@ -1,52 +1,29 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-<title>석식 입장 확인</title>
-
+<meta charset="UTF-8">
+<title>석식 신청</title>
 <style>
-body {
-  text-align:center;
-  font-family:sans-serif;
-  margin-top:50px;
-}
-
-input {
-  font-size:40px;
-  padding:10px;
-  width:300px;
-}
-
-button {
-  font-size:40px;
-  padding:10px 30px;
-}
-
-#result {
-  font-size:50px;
-  margin-top:20px;
-}
+body { text-align:center; font-family:sans-serif; margin-top:50px; }
+input, button { font-size:20px; padding:10px; margin:5px; }
+#message { font-size:20px; margin-top:20px; height:30px; }
+.normal { color:green; }
+.duplicate { color:red; }
+.invalid { color:red; }
 </style>
-
 </head>
-
 <body>
 
-<h1 style="font-size:60px;">석식 입장 확인</h1>
-
-<input id="studentId" placeholder="학번"
-onkeydown="if(event.key==='Enter') check()">
-
-<br><br>
-
-<button onclick="check()">확인</button>
-
-<h2 id="result"></h2>
+<h2>석식 신청</h2>
+<input type="text" id="studentId" placeholder="학번 입력">
+<button id="submitBtn">입력</button>
+<div id="message"></div>
 
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
+// Firebase 설정
 const firebaseConfig = {
   apiKey: "AIzaSyACMtFDfVtgHIerB_8CnqkvtRCdSP0vi68",
   authDomain: "wooshin-28cef.firebaseapp.com",
@@ -59,64 +36,55 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-function today() {
-  return new Date().toISOString().split("T")[0];
-}
+const submitBtn = document.getElementById("submitBtn");
+const studentInput = document.getElementById("studentId");
+const messageDiv = document.getElementById("message");
 
-window.check = async function() {
+// 허용 학번 배열
+const allowedStudents = ["2114"];
 
-  const id = document.getElementById("studentId").value.trim();
-  const result = document.getElementById("result");
+function today() { return new Date().toISOString().split("T")[0]; }
 
-  if (!id) {
-    result.innerText = "학번 입력!";
-    result.style.color = "orange";
-    return;
+async function submit() {
+  const studentId = studentInput.value.trim();
+  messageDiv.textContent="";
+
+  if (!studentId) { 
+    messageDiv.textContent="학번을 입력해주세요"; 
+    messageDiv.className="invalid"; 
+    return; 
   }
 
-  const attemptRef = doc(db,"logs",today(),"attempts",id);
+  const attemptRef = doc(db, "logs", today(), "attempts", studentId);
   const attemptSnap = await getDoc(attemptRef);
 
-  const studentRef = doc(db,"students",id);
-  const studentSnap = await getDoc(studentRef);
-
-  const updateAttempt = async (type) => {
-    await setDoc(attemptRef,{
-      type:type,
-      count:attemptSnap.exists()
-        ? attemptSnap.data().count+1
-        : 1
-    });
-  };
-
-  if(!studentSnap.exists()){
-    await updateAttempt("invalid");
-
-    result.innerText="석식 신청 안 됨";
-    result.style.color="red";
+  if (!allowedStudents.includes(studentId)) {
+    // 없는 학번 처리 → Firestore에도 기록
+    await setDoc(attemptRef, { count:1, type:"invalid" });
+    messageDiv.textContent="등록되지 않은 학번"; 
+    messageDiv.className="invalid"; 
+    studentInput.value="";
     return;
   }
 
-  const logRef = doc(db,"logs",today(),"entries",id);
-  const logSnap = await getDoc(logRef);
-
-  if(logSnap.exists()){
-    await updateAttempt("duplicate");
-
-    result.innerText="이미 입장함";
-    result.style.color="red";
-    return;
+  if (!attemptSnap.exists()) {
+    // 처음 입력 → 정상
+    await setDoc(attemptRef, { count:1, type:"정상" });
+    messageDiv.textContent="정상 입력"; 
+    messageDiv.className="normal";
+  } else {
+    // 이미 입력 → 중복 처리
+    const prevCount = attemptSnap.data().count || 1;
+    await setDoc(attemptRef, { count: prevCount + 1, type:"duplicate" });
+    messageDiv.textContent="이미 입력함"; 
+    messageDiv.className="duplicate";
   }
 
-  await setDoc(logRef,{time:new Date()});
-  await updateAttempt("normal");
+  studentInput.value="";
+}
 
-  result.innerText="입장 가능";
-  result.style.color="green";
-
-  document.getElementById("studentId").value="";
-  document.getElementById("studentId").focus();
-};
+submitBtn.addEventListener("click", submit);
+studentInput.addEventListener("keypress", e => { if(e.key==="Enter") submit(); });
 
 </script>
 

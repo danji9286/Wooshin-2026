@@ -1,99 +1,50 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>관리자</title>
-
+<title>석식 관리자</title>
 <style>
-
-body {
-  font-family: sans-serif;
-  margin: 0;
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-#login {
-  text-align: center;
-}
-
-#admin {
-  display: none;
-  width: 100%;
-  max-width: 900px;
-  margin: auto;
-}
-
-section {
-  margin-top: 20px;
-}
-
-h2 {
-  border-bottom: 2px solid black;
-}
-
-li {
-  font-size: 20px;
-}
-
-button, input {
-  font-size: 20px;
-  padding: 10px;
-  margin: 5px;
-}
-
+body { font-family:sans-serif; margin:0; padding:0; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; }
+h1 { margin-bottom:20px; }
+section { margin-top:20px; }
+h2 { border-bottom:2px solid black; }
+li { font-size:20px; }
+button { font-size:20px; padding:10px; margin-right:10px; }
+#adminPanel { display:none; }
+input { font-size:20px; padding:10px; margin-right:10px; }
 </style>
-
 </head>
-
 <body>
-
-<!-- 로그인 화면 -->
-
-<div id="login">
-
-<h2>관리자 비밀번호</h2>
-
-<input type="password" id="pw"
-onkeydown="if(event.key==='Enter') login()">
-
-<br>
-
-<button onclick="login()">확인</button>
-
-<p id="loginMsg"></p>
-
-</div>
-
-<!-- 관리자 화면 -->
-
-<div id="admin">
 
 <h1>석식 관리자</h1>
 
-<button onclick="load()">새로고침</button>
-<button onclick="reset()">오늘 기록 초기화</button>
+<!-- 로그인 화면 -->
+<div id="loginSection">
+  <input type="password" id="adminPw" placeholder="비밀번호">
+  <button id="loginBtn">입장</button>
+</div>
 
-<section>
-<h2>정상 입장</h2>
-<ul id="normal"></ul>
-</section>
+<!-- 관리자 화면 -->
+<div id="adminPanel">
+  <button onclick="load()">새로고침</button>
+  <button onclick="reset()">오늘 기록 초기화</button>
 
-<section>
-<h2>중복 입력</h2>
-<ul id="duplicate"></ul>
-</section>
+  <section>
+    <h2>정상 입장</h2>
+    <ul id="normal"></ul>
+  </section>
 
-<section>
-<h2>없는 학번</h2>
-<ul id="invalid"></ul>
-</section>
+  <section>
+    <h2>중복 입력</h2>
+    <ul id="duplicate"></ul>
+  </section>
 
+  <section>
+    <h2>없는 학번</h2>
+    <ul id="invalid"></ul>
+  </section>
 </div>
 
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import { getFirestore, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
@@ -109,69 +60,54 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const PASSWORD = "0105";
+const adminPassword = "0105";
+const loginBtn = document.getElementById("loginBtn");
+const adminPw = document.getElementById("adminPw");
+const adminPanel = document.getElementById("adminPanel");
+const loginSection = document.getElementById("loginSection");
 
-function today() {
-  return new Date().toISOString().split("T")[0];
+function today(){ return new Date().toISOString().split("T")[0]; }
+
+// 로그인 처리
+loginBtn.addEventListener("click", login);
+adminPw.addEventListener("keypress", e => { if(e.key==="Enter") login(); });
+
+function login(){
+  if(adminPw.value === adminPassword){
+    adminPw.value="";
+    loginSection.style.display="none";
+    adminPanel.style.display="block";
+    load();
+  } else {
+    alert("비밀번호 틀림");
+  }
 }
 
-window.login = function() {
+// 기록 불러오기
+window.load = async function(){
+  ["normal","duplicate","invalid"].forEach(id=>document.getElementById(id).innerHTML="");
 
-  const pw = document.getElementById("pw").value;
-
-  if (pw === PASSWORD) {
-
-    document.getElementById("login").style.display = "none";
-    document.getElementById("admin").style.display = "block";
-
-    document.body.style.alignItems = "flex-start";
-    document.body.style.padding = "20px";
-
-    load();
-
-  } else {
-    document.getElementById("loginMsg").innerText = "비밀번호 틀림";
-  }
-};
-
-window.load = async function() {
-
-  ["normal", "duplicate", "invalid"].forEach(id => {
-    document.getElementById(id).innerHTML = "";
-  });
-
-  const snap = await getDocs(
-    collection(db, "logs", today(), "attempts")
-  );
-
-  snap.forEach(d => {
-
-    const data = d.data();
-
-    const li = document.createElement("li");
-    li.textContent = d.id + " (" + data.count + "회)";
-
-    document.getElementById(data.type).appendChild(li);
-
+  const snap = await getDocs(collection(db,"logs",today(),"attempts"));
+  snap.forEach(d=>{
+    const data=d.data();
+    const li=document.createElement("li");
+    li.textContent=d.id+" ("+data.count+"회)";
+    
+    // Firestore에 저장된 type이 '정상'/'duplicate'/'invalid'로 들어와야 정상 표시
+    if(data.type==="정상") document.getElementById("normal").appendChild(li);
+    else if(data.type==="duplicate") document.getElementById("duplicate").appendChild(li);
+    else document.getElementById("invalid").appendChild(li);
   });
 };
 
-window.reset = async function() {
-
-  if (!confirm("오늘 기록 초기화?")) return;
-
-  const snap = await getDocs(
-    collection(db, "logs", today(), "attempts")
-  );
-
-  for (const d of snap.docs) {
-    await deleteDoc(d.ref);
-  }
-
+// 초기화
+window.reset = async function(){
+  if(!confirm("오늘 기록 초기화?")) return;
+  const snap = await getDocs(collection(db,"logs",today(),"attempts"));
+  for(const d of snap.docs) await deleteDoc(d.ref);
   alert("초기화 완료");
   load();
 };
-
 </script>
 
 </body>
