@@ -41,7 +41,7 @@ const studentInput = document.getElementById("studentId");
 const messageDiv = document.getElementById("message");
 
 // 허용 학번 배열
-const allowedStudents = ["2114"];
+const allowedStudents = ["2114, 1511"];
 
 function today() { return new Date().toISOString().split("T")[0]; }
 
@@ -89,4 +89,5 @@ studentInput.addEventListener("keypress", e => { if(e.key==="Enter") submit(); }
 </script>
 
 </body>
+
 </html>
